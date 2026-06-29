@@ -1,0 +1,17 @@
+<template>
+  <div id="app-root">
+    <Navbar v-if="auth.isAuthenticated" />
+    <router-view />
+  </div>
+</template>
+
+<script setup>
+import { useAuthStore } from './stores/auth.js'
+import Navbar from './components/Navbar.vue'
+
+const auth = useAuthStore()
+</script>
+
+<style>
+#app-root { min-height: 100vh; display: flex; flex-direction: column; }
+</style>
