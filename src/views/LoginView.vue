@@ -1,8 +1,10 @@
 <template>
   <div class="auth-page">
     <div class="auth-card card">
-      <div class="auth-logo">✦ TaskFlow</div>
-      <h1 class="auth-title">Connexion</h1>
+<div class="auth-logo">
+  <img src="../assets/logo.png" alt="TaskFlow" class="auth-logo-img" />
+  <span class="auth-logo-text">askFlow</span>
+</div>      <h1 class="auth-title">Connexion</h1>
 
       <div v-if="error" class="alert alert-error">{{ error }}</div>
 
@@ -64,11 +66,39 @@ async function submit() {
   padding: 24px; background: var(--gray-1);
 }
 .auth-card { width: 100%; max-width: 380px; }
-.auth-logo {
-  font-size: 22px; font-weight: 700; color: var(--blue);
-  margin-bottom: 20px; text-align: center;
+
+
+
+ .auth-logo {
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto 30px;
 }
-.auth-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; text-align: center; }
+
+.auth-logo-img {
+  width: 150px;   
+  height: auto;
+  display: block;
+}
+
+.auth-logo-text {
+  position: absolute;
+  left: 110%;
+  top: 55%;
+  transform: translate(-50%, -50%);
+
+  font-size: 35px;
+  font-weight: 800;
+  color: rgb(19, 60, 209);              
+  text-shadow: 0 2px 8px rgba(0,0,0,0.35);
+
+  white-space: nowrap;
+  pointer-events: none;
+}
+.auth-title {  transform: translate(50%, -50%); top: 35%;  left: 42%;
+  position: absolute;font-size: 22px; font-weight: 600; margin-bottom: 50px; text-align: center; }
 .auth-link  { text-align: center; margin-top: 16px; font-size: 13px; color: var(--gray-5); }
 .auth-link a { color: var(--blue); text-decoration: none; font-weight: 500; }
 .demo-info {

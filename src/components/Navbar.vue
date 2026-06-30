@@ -1,9 +1,9 @@
 <template>
   <nav class="navbar">
     <div class="nav-inner">
-      <router-link to="/dashboard" class="nav-logo">
-        ✦ TaskFlow
-      </router-link>
+     <router-link to="/dashboard" class="nav-logo">
+  <img src="../assets/logo.png" alt="TaskFlow" class="logo-img" />
+</router-link>
 
       <div class="nav-links">
         <router-link to="/dashboard"  class="nav-link">Tableau de bord</router-link>
@@ -62,10 +62,19 @@ async function logout() {
   max-width: 1000px; margin: 0 auto; padding: 0 24px;
   height: 56px; display: flex; align-items: center; gap: 24px;
 }
+
+
 .nav-logo {
-  font-weight: 600; font-size: 16px; color: var(--blue);
-  text-decoration: none; flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
 }
+
+.logo-img {
+  height: 60px; 
+  width: auto;
+} 
 .nav-links { display: flex; gap: 4px; flex: 1; }
 .nav-link {
   padding: 6px 12px; border-radius: 6px; font-size: 13px;
