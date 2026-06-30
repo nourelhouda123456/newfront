@@ -65,8 +65,94 @@ export const useAuthStore = defineStore('auth', () => {
     clearSession()
   }
 
+  const users = ref([])
+
+  async function fetchUsers() {
+    const res = await fetch(`${API}/users`, {
+      headers: { 'Authorization': `Bearer ${token.value}` }
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message)
+    users.value = data.users
+  }
+
+  function getAllUsers() {
+    return users.value
+  }
+
+  async function toggleUserActive(id) {
+    const res = await fetch(`${API}/users/${id}/active`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token.value}` }
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message)
+    
+    const idx = users.value.findIndex(u => u.id === id)
+    if (idx !== -1) users.value[idx] = data.user
+  }
+
+  async function changeUserRole(id, role) {
+    const res = await fetch(`${API}/users/${id}/role`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token.value}`
+      },
+      body: JSON.stringify({ role })
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message)
+
+    const idx = users.value.findIndex(u => u.id === id)
+    if (idx !== -1) users.value[idx] = data.user
+  }
+
+  async function deleteUser(id) {
+    const res = await fetch(`${API}/users/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token.value}` }
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message)
+
+    users.value = users.value.filter(u => u.id !== id)
+  }
+
+  async function updateProfile(name, email) {
+    const res = await fetch(`${API}/users/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token.value}`
+      },
+      body: JSON.stringify({ name, email })
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message)
+
+    currentUser.value = data.user
+    localStorage.setItem('user', JSON.stringify(data.user))
+    return data.user
+  }
+
+  async function updatePassword(current, next) {
+    const res = await fetch(`${API}/users/password`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token.value}`
+      },
+      body: JSON.stringify({ current, next })
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message)
+    return data
+  }
+
   return {
-    token, currentUser, isAuthenticated, isAdmin,
-    register, login, logout, fetchMe,
+    token, currentUser, isAuthenticated, isAdmin, users,
+    register, login, logout, fetchMe, fetchUsers, getAllUsers,
+    toggleUserActive, changeUserRole, deleteUser, updateProfile, updatePassword
   }
 })

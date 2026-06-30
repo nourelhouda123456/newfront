@@ -73,15 +73,42 @@ export const useTasksStore = defineStore('tasks', () => {
     tasks.value = tasks.value.filter(t => t._id !== id)
   }
 
+  // ── COMMENTS ──────────────────────────────────────────────────
+  async function addComment(taskId, content) {
+    const res = await fetch(`${API}/tasks/${taskId}/comments`, {
+      method:  'POST',
+      headers: headers(),
+      body:    JSON.stringify({ content }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message)
+    const idx = tasks.value.findIndex(t => t.id === taskId)
+    if (idx !== -1) tasks.value[idx] = data.task
+    return data.task
+  }
+
+  async function deleteComment(taskId, commentId) {
+    const res = await fetch(`${API}/tasks/${taskId}/comments/${commentId}`, {
+      method:  'DELETE',
+      headers: headers(),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message)
+    const idx = tasks.value.findIndex(t => t.id === taskId)
+    if (idx !== -1) tasks.value[idx] = data.task
+    return data.task
+  }
+
   // ── STATS ─────────────────────────────────────────────────────
   function getStats() {
     return {
       total:      tasks.value.length,
       todo:       tasks.value.filter(t => t.status === 'todo').length,
       inProgress: tasks.value.filter(t => t.status === 'in_progress').length,
+      blocked:    tasks.value.filter(t => t.status === 'blocked').length,
       done:       tasks.value.filter(t => t.status === 'done').length,
     }
   }
 
-  return { tasks, loading, error, fetchTasks, addTask, updateTask, deleteTask, getStats }
+  return { tasks, loading, error, fetchTasks, addTask, updateTask, deleteTask, addComment, deleteComment, getStats }
 })

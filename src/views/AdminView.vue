@@ -41,7 +41,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useTasksStore } from '../stores/tasks.js'
 import UserTable from '../components/UserTable.vue'
@@ -53,6 +53,14 @@ const search  = ref('')
 const success = ref('')
 
 const users = computed(() => auth.getAllUsers())
+
+onMounted(async () => {
+  try {
+    await auth.fetchUsers()
+  } catch (err) {
+    console.error('Erreur de chargement des utilisateurs:', err)
+  }
+})
 const filteredUsers = computed(() => {
   if (!search.value) return users.value
   const q = search.value.toLowerCase()
@@ -70,18 +78,30 @@ function flash(msg) {
   setTimeout(() => success.value = '', 3000)
 }
 
-function handleToggle(id) {
-  auth.toggleUserActive(id)
-  flash('Statut mis à jour.')
+async function handleToggle(id) {
+  try {
+    await auth.toggleUserActive(id)
+    flash('Statut mis à jour.')
+  } catch (err) {
+    alert(err.message || 'Erreur lors de la mise à jour.')
+  }
 }
-function handleRole(id, role) {
-  auth.changeUserRole(id, role)
-  flash('Rôle mis à jour.')
+async function handleRole(id, role) {
+  try {
+    await auth.changeUserRole(id, role)
+    flash('Rôle mis à jour.')
+  } catch (err) {
+    alert(err.message || 'Erreur lors de la mise à jour.')
+  }
 }
-function handleDelete(id) {
+async function handleDelete(id) {
   if (!confirm('Supprimer définitivement cet utilisateur ?')) return
-  auth.deleteUser(id)
-  flash('Utilisateur supprimé.')
+  try {
+    await auth.deleteUser(id)
+    flash('Utilisateur supprimé.')
+  } catch (err) {
+    alert(err.message || 'Erreur lors de la suppression.')
+  }
 }
 </script>
 

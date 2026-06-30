@@ -59,7 +59,7 @@
 <script setup>
 defineProps({
   users:     { type: Array, required: true },
-  currentId: { type: Number, required: true },
+  currentId: { type: [String, Number], required: true },
 })
 defineEmits(['toggle-active', 'change-role', 'delete'])
 

@@ -19,6 +19,10 @@
         <div class="stat-value progress">{{ stats.inProgress }}</div>
       </div>
       <div class="stat-card card">
+        <div class="stat-label">Bloquées</div>
+        <div class="stat-value blocked">{{ stats.blocked }}</div>
+      </div>
+      <div class="stat-card card">
         <div class="stat-label">Terminées</div>
         <div class="stat-value done">{{ stats.done }}</div>
       </div>
@@ -68,29 +72,37 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useTasksStore } from '../stores/tasks.js'
 
 const auth  = useAuthStore()
 const tasks = useTasksStore()
 
+onMounted(() => {
+  tasks.fetchTasks()
+  if (auth.isAdmin) {
+    auth.fetchUsers()
+  }
+})
+
 const stats       = computed(() => tasks.getStats())
-const recentTasks = computed(() => tasks.getVisibleTasks().slice(-5).reverse())
+const recentTasks = computed(() => tasks.tasks.slice(-5).reverse())
 const totalUsers  = computed(() => auth.getAllUsers().length)
 
-const statusLabel = s => ({ todo: 'À faire', in_progress: 'En cours', done: 'Terminé' }[s])
-const statusClass = s => ({ todo: 'badge badge-todo', in_progress: 'badge badge-progress', done: 'badge badge-done' }[s])
+const statusLabel = s => ({ todo: 'À faire', in_progress: 'En cours', blocked: 'Bloqué', done: 'Terminé' }[s])
+const statusClass = s => ({ todo: 'badge badge-todo', in_progress: 'badge badge-progress', blocked: 'badge badge-blocked', done: 'badge badge-done' }[s])
 const priorityIcon = p => ({ low: '🔵', medium: '🟡', high: '🔴' }[p])
 </script>
 
 <style scoped>
-.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
 .stat-card  { text-align: center; }
 .stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--gray-5); }
 .stat-value { font-size: 32px; font-weight: 700; color: var(--gray-9); margin-top: 4px; }
 .stat-value.todo     { color: var(--amber); }
 .stat-value.progress { color: var(--blue); }
+.stat-value.blocked  { color: var(--red); }
 .stat-value.done     { color: var(--green); }
 
 .progress-section { margin-bottom: 16px; }

@@ -72,12 +72,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useTasksStore } from '../stores/tasks.js'
 
 const auth  = useAuthStore()
 const tasks = useTasksStore()
+
+onMounted(() => {
+  tasks.fetchTasks()
+})
 
 // Info form
 const infoForm    = reactive({ name: auth.currentUser?.name || '', email: auth.currentUser?.email || '' })
@@ -92,7 +96,10 @@ const initials = computed(() => {
 })
 
 const myStats = computed(() => {
-  const mine = tasks.tasks.filter(t => t.userId === auth.currentUser?.id)
+  const mine = tasks.tasks.filter(t => {
+    const ownerId = t.owner?.id || t.owner?._id || t.owner
+    return ownerId === auth.currentUser?.id
+  })
   return {
     total: mine.length,
     done:  mine.filter(t => t.status === 'done').length,
@@ -100,35 +107,29 @@ const myStats = computed(() => {
   }
 })
 
-function saveInfo() {
+async function saveInfo() {
   infoError.value = ''; infoSuccess.value = ''
   if (!infoForm.name || !infoForm.email) { infoError.value = 'Champs obligatoires.'; return }
-  // Update in users array
-  const users = JSON.parse(localStorage.getItem('users') || '[]')
-  const idx = users.findIndex(u => u.id === auth.currentUser.id)
-  if (idx !== -1) {
-    users[idx].name = infoForm.name
-    users[idx].email = infoForm.email
-    localStorage.setItem('users', JSON.stringify(users))
-    const updated = { ...auth.currentUser, name: infoForm.name, email: infoForm.email }
-    localStorage.setItem('currentUser', JSON.stringify(updated))
-    auth.currentUser.name = infoForm.name
-    auth.currentUser.email = infoForm.email
+  try {
+    await auth.updateProfile(infoForm.name, infoForm.email)
+    infoSuccess.value = 'Profil mis à jour.'
+  } catch (err) {
+    infoError.value = err.message || 'Erreur lors de la mise à jour.'
   }
-  infoSuccess.value = 'Profil mis à jour.'
 }
 
-function changePwd() {
+async function changePwd() {
   pwdError.value = ''; pwdSuccess.value = ''
-  const users = JSON.parse(localStorage.getItem('users') || '[]')
-  const user = users.find(u => u.id === auth.currentUser.id)
-  if (!user || user.password !== pwdForm.current) { pwdError.value = 'Mot de passe actuel incorrect.'; return }
+  if (!pwdForm.current || !pwdForm.next || !pwdForm.confirm) { pwdError.value = 'Tous les champs sont requis.'; return }
   if (pwdForm.next.length < 6) { pwdError.value = 'Minimum 6 caractères.'; return }
   if (pwdForm.next !== pwdForm.confirm) { pwdError.value = 'Les mots de passe ne correspondent pas.'; return }
-  user.password = pwdForm.next
-  localStorage.setItem('users', JSON.stringify(users))
-  pwdForm.current = ''; pwdForm.next = ''; pwdForm.confirm = ''
-  pwdSuccess.value = 'Mot de passe changé avec succès.'
+  try {
+    await auth.updatePassword(pwdForm.current, pwdForm.next)
+    pwdForm.current = ''; pwdForm.next = ''; pwdForm.confirm = ''
+    pwdSuccess.value = 'Mot de passe changé avec succès.'
+  } catch (err) {
+    pwdError.value = err.message || 'Erreur lors de la modification.'
+  }
 }
 </script>
 

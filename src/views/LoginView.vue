@@ -25,7 +25,7 @@
       </p>
 
       <div class="demo-info">
-        <p>💡 Compte admin par défaut :</p>
+        <p> Compte admin par défaut :</p>
         <p><strong>admin@taskflow.com</strong> / admin123</p>
       </div>
     </div>
@@ -51,11 +51,10 @@ async function submit() {
     error.value = 'Veuillez remplir tous les champs.'; return
   }
   loading.value = true
-  await new Promise(r => setTimeout(r, 400)) // simulation légère
-  const result = auth.login(email.value, password.value)
+  const result = await auth.login(email.value, password.value)
   loading.value = false
-  if (!result.ok) { error.value = result.error; return }
-  router.push('/dashboard')
+  if (!result.ok) { error.value = result.error || 'Identifiants invalides.'; return }
+  await router.push('/dashboard')
 }
 </script>
 
