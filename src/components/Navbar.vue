@@ -44,6 +44,34 @@
 
       <!-- Right -->
       <div class="nav-right">
+        
+        <!-- Notifications (Admin only pour l'instant) -->
+        <div v-if="auth.isAdmin" class="nav-notifs" style="position:relative;">
+          <button class="btn btn-ghost btn-sm notif-btn" @click="notifOpen = !notifOpen" style="position:relative;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 16a2 2 0 002-2H6a2 2 0 002 2zM8 1.918l-.797.161A4.002 4.002 0 004 6c0 .628-.134 2.197-.459 3.742-.16.767-.376 1.566-.663 2.258h10.244c-.287-.692-.502-1.49-.663-2.258C12.134 8.197 12 6.628 12 6a4.002 4.002 0 00-3.203-3.92L8 1.917zM14.22 12c.223.447.481.801.78 1H1c.299-.199.557-.553.78-1C2.68 10.2 3 6.88 3 6c0-2.42 1.72-4.44 4.005-4.901a1 1 0 111.99 0A5.002 5.002 0 0113 6c0 .88.32 4.2 1.22 6z"/></svg>
+            <span v-if="notifsStore.notifications.length > 0" class="notif-badge">{{ notifsStore.notifications.length }}</span>
+          </button>
+          
+          <div v-if="notifOpen" class="notif-dropdown">
+            <div class="notif-header">
+              <h4>Notifications</h4>
+              <button class="btn-icon" @click="notifOpen = false">✕</button>
+            </div>
+            <div class="notif-body">
+              <div v-if="notifsStore.notifications.length === 0" class="notif-empty">
+                Aucune notification.
+              </div>
+              <div v-for="n in notifsStore.notifications" :key="n.id || n._id" class="notif-item">
+                <p class="notif-msg">{{ n.message }}</p>
+                <div class="notif-actions">
+                  <button class="btn btn-primary btn-sm" @click="approveNotif(n.id || n._id)">Approuver</button>
+                  <button class="btn btn-ghost btn-sm" @click="notifsStore.markAsRead(n.id || n._id)">Ignorer</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <router-link to="/profile" class="nav-user-pill">
           <div class="avatar avatar-sm">{{ initials }}</div>
           <div class="user-info">
@@ -84,13 +112,31 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
+import { useNotificationsStore } from '../stores/notifications.js'
 
 const auth = useAuthStore()
+const notifsStore = useNotificationsStore()
 const router = useRouter()
 const mobileOpen = ref(false)
+const notifOpen = ref(false)
+
+onMounted(() => {
+  if (auth.isAdmin) {
+    notifsStore.fetchNotifications()
+  }
+})
+
+async function approveNotif(id) {
+  try {
+    await notifsStore.approveReopen(id)
+    // Optionnel : afficher un toast ou actualiser les tâches si on est sur la page
+  } catch (e) {
+    console.error(e)
+  }
+}
 
 const initials = computed(() => {
   const n = auth.currentUser?.name || ''
@@ -98,13 +144,7 @@ const initials = computed(() => {
 })
 
 async function logout() {
-  try {
-    await fetch('http://localhost:3000/api/auth/logout', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${auth.token}` },
-    })
-  } catch {}
-  auth.logout()
+  await auth.logout()
   router.push('/login')
 }
 </script>
@@ -242,5 +282,53 @@ async function logout() {
 }
 @media (min-width: 769px) {
   .mobile-nav { display: none !important; }
+}
+
+/* ── Notifications Dropdown ──────────────────────── */
+.notif-btn { position: relative; }
+.notif-badge {
+  position: absolute; top: -2px; right: -2px;
+  background: #DE350B; color: #fff;
+  font-size: 10px; font-weight: bold;
+  padding: 1px 4px; border-radius: 10px;
+  min-width: 16px; text-align: center;
+}
+.notif-dropdown {
+  position: absolute; top: 100%; right: 0;
+  width: 300px; background: #fff;
+  border-radius: 8px; box-shadow: 0 4px 12px rgba(9,30,66,.2);
+  margin-top: 8px; z-index: 250;
+  border: 1px solid #EBECF0;
+  overflow: hidden;
+}
+.notif-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px; background: #F4F5F7; border-bottom: 1px solid #EBECF0;
+}
+.notif-header h4 { margin: 0; font-size: 14px; color: #172B4D; }
+.notif-body {
+  max-height: 300px; overflow-y: auto;
+}
+.notif-empty {
+  padding: 20px; text-align: center; color: #7A869A; font-size: 13px;
+}
+.notif-item {
+  padding: 12px; border-bottom: 1px solid #EBECF0;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-msg {
+  margin: 0 0 8px 0; font-size: 13px; color: #172B4D; line-height: 1.4;
+}
+.notif-actions {
+  display: flex; gap: 8px;
+}
+.notif-actions .btn {
+  font-size: 11px; padding: 4px 8px;
+}
+.notif-actions .btn-ghost {
+  color: #7A869A; background: #EBECF0;
+}
+.notif-actions .btn-ghost:hover {
+  background: #DFE1E6; color: #172B4D;
 }
 </style>

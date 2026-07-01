@@ -8,10 +8,18 @@
           {{ auth.isAdmin ? 'Créez et affectez des projets aux utilisateurs' : 'Vos projets affectés par l\'administration' }}
         </p>
       </div>
-      <button v-if="auth.isAdmin" class="btn btn-primary" @click="openModal()">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 01.5.5v5h5a.5.5 0 010 1h-5v5a.5.5 0 01-1 0v-5h-5a.5.5 0 010-1h5v-5A.5.5 0 018 2z"/></svg>
-        Nouveau projet
-      </button>
+      <div class="header-actions">
+        <!-- Bouton vocal (admin) -->
+        <button v-if="auth.isAdmin" class="btn btn-ghost" @click="handleVoiceCommand" :class="{ 'listening': isListening }" :title="isSupported ? 'Créer par la voix' : 'Reconnaissance vocale non supportée'">
+          <span v-if="isListening" class="pulse-dot">🔴</span>
+          <span v-else>🎤</span>
+        </button>
+
+        <button v-if="auth.isAdmin" class="btn btn-primary" @click="openModal()">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 01.5.5v5h5a.5.5 0 010 1h-5v5a.5.5 0 01-1 0v-5h-5a.5.5 0 010-1h5v-5A.5.5 0 018 2z"/></svg>
+          Nouveau projet
+        </button>
+      </div>
     </div>
 
     <!-- Toast -->
@@ -189,10 +197,12 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import { useProjectsStore } from '../stores/projects.js'
+import { useVoiceCommand } from '../composables/useVoiceCommand.js'
 
 const auth          = useAuthStore()
 const projectsStore = useProjectsStore()
 const router        = useRouter()
+const { isListening, isSupported, startListening } = useVoiceCommand()
 const fileInputRef  = ref(null)
 
 const showModal      = ref(false)
@@ -328,6 +338,57 @@ async function submitForm() {
     showToast(e.message || 'Erreur lors de la sauvegarde.', 'error')
   } finally {
     saving.value = false
+  }
+}
+
+async function handleVoiceCommand() {
+  if (!isSupported.value) {
+    showToast('Votre navigateur ne supporte pas la reconnaissance vocale.', 'error')
+    return
+  }
+
+  try {
+    showToast('Je vous écoute (ex: Créer le projet refonte et affecter à Ali)...', 'success')
+    const transcript = await startListening()
+    const text = transcript.toLowerCase()
+    
+    // Parse "créer projet X [et affecter à Y]"
+    // Support divers mots comme "pour", "affecté à"
+    const regex = /créer\s+(?:le\s+)?projet\s+(.*?)(?:\s+(?:et\s+)?(?:affecter|affecté)\s+à\s+(.*)|\s+pour\s+(.*))?$/i
+    const match = text.match(regex)
+
+    if (match) {
+      const projectName = match[1]?.trim()
+      const assigneeName = (match[2] || match[3])?.trim()
+
+      openModal()
+      if (projectName) {
+        // Mettre la première lettre en majuscule
+        form.name = projectName.charAt(0).toUpperCase() + projectName.slice(1)
+      }
+
+      if (assigneeName) {
+        // Trouver l'utilisateur correspondant (comparaison partielle)
+        const foundUser = auth.users.find(u => u.name.toLowerCase().includes(assigneeName.toLowerCase()))
+        if (foundUser) {
+          form.assignedUsers = [foundUser.id]
+          showToast(`Projet "${form.name}" créé, affecté à ${foundUser.name}. Vérifiez et validez.`, 'success')
+        } else {
+          showToast(`Projet "${form.name}" créé, mais l'utilisateur "${assigneeName}" n'a pas été trouvé.`, 'error')
+        }
+      } else {
+        showToast(`Projet "${form.name}" créé. Vérifiez et validez.`, 'success')
+      }
+    } else {
+      showToast('Je n\'ai pas compris la commande.', 'error')
+      console.log('Transcript ignoré :', text)
+    }
+  } catch (err) {
+    if (err.message.includes('not-allowed')) {
+      showToast('Accès au microphone refusé.', 'error')
+    } else {
+      showToast('Erreur de reconnaissance vocale.', 'error')
+    }
   }
 }
 

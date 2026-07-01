@@ -23,11 +23,18 @@
           </span>
         </div>
       </div>
+      <div class="header-actions">
+        <!-- Bouton vocal -->
+        <button class="btn btn-ghost" @click="handleVoiceCommand" :class="{ 'listening': isListening }" :title="isSupported ? 'Créer par la voix' : 'Reconnaissance vocale non supportée'">
+          <span v-if="isListening" class="pulse-dot">🔴</span>
+          <span v-else>🎤</span>
+        </button>
 
-      <button class="btn btn-primary" @click="openModal()">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 01.5.5v5h5a.5.5 0 010 1h-5v5a.5.5 0 01-1 0v-5h-5a.5.5 0 010-1h5v-5A.5.5 0 018 2z"/></svg>
-        Nouvelle tâche
-      </button>
+        <button class="btn btn-primary" @click="openModal()">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 01.5.5v5h5a.5.5 0 010 1h-5v5a.5.5 0 01-1 0v-5h-5a.5.5 0 010-1h5v-5A.5.5 0 018 2z"/></svg>
+          Nouvelle tâche
+        </button>
+      </div>
     </div>
 
     <!-- Toast -->
@@ -122,9 +129,15 @@
 
             <!-- Footer -->
             <div class="card-footer">
-              <span class="card-date">{{ formatDate(task.createdAt) }}</span>
-              <div v-if="canEditTask(task)" class="card-actions">
-                <button class="btn-icon" @click.stop="openModal(task)" title="Modifier">
+              <span class="card-date" :title="'Dernière modification : ' + getLatestStatusDate(task)">{{ getLatestStatusDate(task) }}</span>
+              <div class="card-actions">
+                <!-- Bouton demander directement sur la carte pour les tâches verrouillées -->
+                <button v-if="isTaskLocked(task) && !requestingReopenId[task._id || task.id]" class="btn-icon" @click.stop="requestReopenFromCard(task)" title="Demander la réouverture" style="color: #FF991F;">
+                  🔄
+                </button>
+                <div v-else-if="requestingReopenId[task._id || task.id]" class="spinner spinner-sm" style="border-top-color:#0052CC;width:12px;height:12px;"></div>
+                
+                <button v-if="canEditTask(task)" class="btn-icon" @click.stop="openModal(task)" title="Modifier">
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M15.502 1.94a.5.5 0 010 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 01.707 0l1.293 1.293zm-1.75 2.456l-2-2L4.939 9.21a.5.5 0 00-.121.196l-.805 2.414a.25.25 0 00.316.316l2.414-.805a.5.5 0 00.196-.12l6.813-6.814z"/></svg>
                 </button>
                 <button v-if="isTaskDeletable(task)" class="btn-icon danger" @click.stop="deleteTask(task._id || task.id)" title="Supprimer">
@@ -188,12 +201,17 @@
             </div>
             <div class="form-group">
               <label>Statut</label>
-              <select v-model="form.status" :disabled="isStatusSelectDisabled">
-                <option value="todo">À faire</option>
-                <option value="in_progress">En cours</option>
-                <option value="blocked">🔴 Bloqué</option>
-                <option value="done">Terminé</option>
-              </select>
+              <div style="display:flex; gap:8px;">
+                <select v-model="form.status" :disabled="isStatusSelectDisabled" style="flex:1;">
+                  <option value="todo">À faire</option>
+                  <option value="in_progress">En cours</option>
+                  <option value="blocked">🔴 Bloqué</option>
+                  <option value="done">Terminé</option>
+                </select>
+                <button v-if="isStatusSelectDisabled && !requestingReopen" class="btn btn-ghost" type="button" @click="requestReopen" title="Demander à l'administrateur de rouvrir cette tâche" style="padding:0 8px;">
+                  🔄 Demander
+                </button>
+              </div>
             </div>
           </div>
 
@@ -328,15 +346,18 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import { useTasksStore } from '../stores/tasks.js'
 import { useProjectsStore } from '../stores/projects.js'
+import { useVoiceCommand } from '../composables/useVoiceCommand.js'
 
 const auth          = useAuthStore()
 const tasksStore    = useTasksStore()
 const projectsStore = useProjectsStore()
 const route         = useRoute()
+const router        = useRouter()
+const { isListening, isSupported, startListening } = useVoiceCommand()
 const taskFileRef   = ref(null)
 
 const selectedProjectId = ref(null)
@@ -512,9 +533,64 @@ async function deleteTask(id) {
   catch { showToast('Erreur lors de la suppression', 'error') }
 }
 
+async function handleVoiceCommand() {
+  if (!isSupported.value) {
+    showToast('Votre navigateur ne supporte pas la reconnaissance vocale.', 'error')
+    return
+  }
+
+  try {
+    showToast('Je vous écoute (ex: Créer la tâche bouton rouge pour le projet refonte)...', 'success')
+    const transcript = await startListening()
+    const text = transcript.toLowerCase()
+    
+    // Parse "créer [la] tâche X [pour le projet Y]"
+    const regex = /créer\s+(?:la\s+)?tâche\s+(.*?)(?:\s+(?:pour|dans)(?:\s+le)?\s+projet\s+(.*))?$/i
+    const match = text.match(regex)
+
+    if (match) {
+      const taskTitle = match[1]?.trim()
+      const projectName = match[2]?.trim()
+
+      openModal()
+      if (taskTitle) {
+        form.title = taskTitle.charAt(0).toUpperCase() + taskTitle.slice(1)
+        
+        // Détection basique de la priorité dans le titre dicté
+        if (taskTitle.includes('urgent') || taskTitle.includes('critique')) {
+          form.priority = 'high'
+        } else if (taskTitle.includes('mineur') || taskTitle.includes('basse')) {
+          form.priority = 'low'
+        }
+      }
+
+      if (projectName) {
+        const foundProject = projectsStore.projects.find(p => p.name.toLowerCase().includes(projectName.toLowerCase()))
+        if (foundProject) {
+          form.project = foundProject.id || foundProject._id
+          showToast(`Tâche "${form.title}" créée dans le projet ${foundProject.name}. Vérifiez et validez.`, 'success')
+        } else {
+          showToast(`Tâche "${form.title}" créée, mais le projet "${projectName}" n'a pas été trouvé.`, 'error')
+        }
+      } else {
+        showToast(`Tâche "${form.title}" créée. Vérifiez et validez.`, 'success')
+      }
+    } else {
+      showToast('Je n\'ai pas compris la commande.', 'error')
+      console.log('Transcript ignoré :', text)
+    }
+  } catch (err) {
+    if (err.message.includes('not-allowed')) {
+      showToast('Accès au microphone refusé.', 'error')
+    } else {
+      showToast('Erreur de reconnaissance vocale.', 'error')
+    }
+  }
+}
+
 // ── Permissions ────────────────────────────────────────────────
 function isTaskLocked(task) { 
-  return false // No longer locked when 'done'
+  return task.status === 'done' && !auth.isAdmin
 }
 function isTaskDraggable(task) {
   if (auth.isAdmin) return true
@@ -538,7 +614,59 @@ function isTaskDeletable(task) {
   const uId = auth.currentUser?.id || auth.currentUser?._id
   return (aId && aId === uId) || (oId && oId === uId)
 }
-const isStatusSelectDisabled = computed(() => false)
+const isStatusSelectDisabled = computed(() => editingTask.value && editingTask.value.status === 'done' && !auth.isAdmin)
+const requestingReopen = ref(false)
+const requestingReopenId = ref({})
+
+async function requestReopen() {
+  if (!confirm("Voulez-vous demander à l'administrateur de rouvrir cette tâche ?")) return
+  requestingReopen.value = true
+  try {
+    const res = await fetch(`http://localhost:3000/api/tasks/${editingTask.value._id || editingTask.value.id}/request-reopen`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${auth.token}`
+      }
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message)
+    editingTask.value = data.task
+    showToast('Demande envoyée à l\'administrateur', 'success')
+  } catch (e) {
+    showToast(e.message || 'Erreur', 'error')
+  } finally {
+    requestingReopen.value = false
+  }
+}
+
+async function requestReopenFromCard(task) {
+  if (!confirm("Voulez-vous demander à l'administrateur de rouvrir cette tâche ?")) return
+  const id = task._id || task.id
+  requestingReopenId.value[id] = true
+  try {
+    const res = await fetch(`http://localhost:3000/api/tasks/${id}/request-reopen`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${auth.token}`
+      }
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.message)
+    
+    // Mettre à jour la tâche dans le store
+    const idx = tasksStore.tasks.findIndex(t => (t._id || t.id) === id)
+    if (idx !== -1) {
+      tasksStore.tasks[idx] = data.task
+    }
+    showToast('Demande envoyée à l\'administrateur', 'success')
+  } catch (e) {
+    showToast(e.message || 'Erreur', 'error')
+  } finally {
+    requestingReopenId.value[id] = false
+  }
+}
 
 // ── Helpers ─────────────────────────────────────────────────────
 const COLORS = ['#0052CC','#00875A','#6554C0','#00B8D9','#FF5630','#FF991F']
@@ -565,6 +693,14 @@ function formatDateTime(iso) {
   return new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function getLatestStatusDate(task) {
+  if (task.statusHistory && task.statusHistory.length > 0) {
+    const latest = task.statusHistory[task.statusHistory.length - 1];
+    return formatDate(latest.changedAt);
+  }
+  return formatDate(task.createdAt);
+}
+
 // ── Toast ───────────────────────────────────────────────────────
 const toast = reactive({ show: false, msg: '', type: 'success' })
 let toastTimer = null
@@ -577,8 +713,13 @@ function showToast(msg, type = 'success') {
 // ── Init ────────────────────────────────────────────────────────
 onMounted(() => {
   tasksStore.fetchTasks()
-  auth.fetchUsers()
   projectsStore.fetchProjects()
+  if (auth.isAdmin) auth.fetchUsers()
+
+  if (route.query.new === '1') {
+    router.replace({ query: {} })
+    openModal()
+  }
   if (route.query.projectId) selectedProjectId.value = route.query.projectId
 })
 </script>
@@ -606,7 +747,22 @@ onMounted(() => {
   gap: 16px;
 }
 .kanban-header-left { display: flex; align-items: center; gap: 16px; flex: 1; }
-.kanban-title { font-size: 18px; font-weight: 700; color: #172B4D; white-space: nowrap; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+
+/* Voice Button */
+.btn-ghost.listening {
+  color: #DE350B;
+  background: rgba(222, 53, 11, 0.1);
+  animation: pulse 1.5s infinite;
+}
+.pulse-dot { font-size: 10px; }
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.kanban-title { font-size: 20px; font-weight: 800; color: #172B4D; margin: 0; }
 
 .filter-pill {
   display: flex; align-items: center; gap: 8px;

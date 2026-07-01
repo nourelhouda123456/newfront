@@ -9,7 +9,7 @@
           <p class="welcome-sub">{{ today }} — Voici un aperçu de votre activité</p>
         </div>
       </div>
-      <router-link to="/tasks" class="btn btn-primary">
+      <router-link to="/tasks?new=1" class="btn btn-primary">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2a.5.5 0 01.5.5v5h5a.5.5 0 010 1h-5v5a.5.5 0 01-1 0v-5h-5a.5.5 0 010-1h5v-5A.5.5 0 018 2z"/></svg>
         Nouvelle tâche
       </router-link>
